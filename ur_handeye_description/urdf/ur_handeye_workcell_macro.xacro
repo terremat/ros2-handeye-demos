@@ -1,0 +1,102 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+
+  <xacro:macro name="ur_handeye_workcell" params="
+    parent
+    *origin
+    ur_type
+    joint_limits_parameters_file
+    kinematics_parameters_file
+    physical_parameters_file
+    visual_parameters_file
+    ">
+
+    <material name="white">
+      <color rgba="1 1 1 1"/>
+    </material>
+
+    <!-- Table size (1.50 x 1.00 x 1.00) with center origin -->
+    <link name="table1">
+      <visual>
+        <geometry>
+          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/>
+        </geometry>
+        <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/>
+        </geometry>
+        <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
+      </collision>
+    </link>
+    <joint name="ground_to_table1" type="fixed">
+      <xacro:insert_block name="origin" />
+      <parent link="${parent}" />
+      <child link="table1" />
+    </joint>
+
+    <link name="table2">
+      <visual>
+        <geometry>
+          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/>
+        </geometry>
+        <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/>
+        </geometry>
+        <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
+      </collision>
+    </link>
+    <joint name="ground_to_table2" type="fixed">
+      <parent link="table1" />
+      <child link="table2" />
+      <origin xyz="1.5 0 0"/>
+    </joint>
+
+
+    <link name="monitor">
+      <visual>
+        <geometry>
+          <mesh filename="package://ur_handeye_description/meshes/171005_Motek_Monitor_L.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="package://ur_handeye_description/meshes/171005_Motek_Monitor_L.dae"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="base_to_monitor" type="fixed">
+      <parent link="table1"/>
+      <child link="monitor"/>
+      <origin xyz="0.2 0.6 0"/>
+    </joint>
+
+
+
+    <link name="robot_mount"/>
+    <joint name="base_to_robot_mount" type="fixed">
+      <parent link="table2"/>
+      <child link="robot_mount"/>
+      <origin xyz="1.1 0.5 0" rpy="0 0 ${pi}" />
+    </joint>
+
+    <!--This will create the specific robot-->
+    <xacro:ur_robot
+      name="${ur_type}"
+      tf_prefix="${ur_type}_"
+      parent="robot_mount"
+      joint_limits_parameters_file="${joint_limits_parameters_file}"
+      kinematics_parameters_file="${kinematics_parameters_file}"
+      physical_parameters_file="${physical_parameters_file}"
+      visual_parameters_file="${visual_parameters_file}"
+    >
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </xacro:ur_robot>
+  </xacro:macro>
+
+</robot>
