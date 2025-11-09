@@ -96,10 +96,6 @@ def generate_launch_description():
         name='GZ_SIM_RESOURCE_PATH',
         value=gz_resource_path
     )
-    print("************************")
-    print(gz_resource_path)
-    print(os.environ.get('GZ_SIM_RESOURCE_PATH', ''))
-    print("************************")
     
     # Spawn robot into Gazebo
     gz_spawn_entity = Node(
