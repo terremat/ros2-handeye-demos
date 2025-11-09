@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
   <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+  <xacro:include filename="$(find ur_handeye_description)/urdf/cameras/_d435.urdf.xacro"/>
 
   <xacro:macro name="ur_handeye_workcell" params="
     name
@@ -118,6 +119,7 @@
     >
       <origin xyz="0 0 0" rpy="0 0 0" />
     </xacro:ur_robot>
+
   </xacro:macro>
 
 </robot>

@@ -2,6 +2,7 @@
 <robot name="ur_handeye_workcell" xmlns:xacro="http://ros.org/wiki/xacro">
 
   <xacro:include filename="$(find ur_handeye_description)/urdf/ur_handeye_workcell_macro.xacro"/>
+  <xacro:include filename="$(find ur_handeye_simulation)/urdf/ur_handeye_camera_macro.xacro"/>
   <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro" />
 
   <xacro:arg name="ur_type" default="ur20"/>
@@ -36,6 +37,14 @@
     >
       <origin xyz="0 0 1" rpy="0 0 0" />
   </xacro:ur_handeye_workcell>
+
+  <!-- HAND-EYE-->
+  <xacro:handeye_camera
+    name="eye_to_hand_camera"
+    parent="world"
+  >
+    <origin xyz="0 0.5 2" rpy="0 ${pi/6} 0 " />
+  </xacro:handeye_camera>
 
   <!-- GAZEBO -->
   <gazebo>

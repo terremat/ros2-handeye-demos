@@ -128,8 +128,15 @@ def generate_launch_description():
     gz_sim_bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
-        arguments=[
-            "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
+        #arguments=[
+        #    "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
+        #],
+        parameters=[
+            {
+                'config_file': PathJoinSubstitution([simulation_package, 'config', 'ros_gz_bridge.yaml']),
+                'expand_gz_topic_names': True,
+                'use_sim_time': True,
+            }
         ],
         output="screen",
     )
