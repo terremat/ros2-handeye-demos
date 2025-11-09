@@ -3,7 +3,7 @@
 
   <xacro:include filename="$(find ur_handeye_description)/urdf/ur_handeye_workcell_macro.xacro"/>
 
-  <xacro:arg name="ur_type" default="ur20"/>
+  <xacro:arg name="ur_type" default="ur10"/>
   <xacro:arg name="name" default="ur"/>
   <xacro:arg name="tf_prefix" default="" />
   <xacro:arg name="joint_limits_parameters_file" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
@@ -25,41 +25,5 @@
     >
       <origin xyz="0 0 1" rpy="0 0 0" />
   </xacro:ur_handeye_workcell>
-
-
-  <!-- Check eye-in-hand configuration -->
-  <joint name="robot_to_camera_in_hand" type="fixed">
-    <parent link="tool0"/>
-    <child link="camera_in_hand_base_link"/>
-    <origin xyz="0 0 0" rpy="0 0 ${pi}" />
-  </joint>
-  <link name="camera_in_hand_base_link" />
-  <xacro:sensor_d435 
-    parent="camera_in_hand_base_link" 
-    name="camera_in_hand"
-    use_nominal_extrinsics="true" 
-    add_plug="false" 
-    use_mesh="true"
-  >
-    <origin xyz="0 0 0" rpy="0 0 0"/>
-  </xacro:sensor_d435>
-  
-  <!-- Check eye-to-hand configuration -->
-  <joint name="robot_to_camera_to_hand" type="fixed">
-    <parent link="world"/>
-    <child link="camera_to_hand_base_link"/>
-    <origin xyz="0 0.5 2" rpy="0 ${pi/6} 0 " />
-  </joint>
-  <link name="camera_to_hand_base_link" />
-  <xacro:sensor_d435 
-    parent="camera_to_hand_base_link" 
-    name="camera_to_hand"
-    use_nominal_extrinsics="true" 
-    add_plug="false" 
-    use_mesh="true"
-  >
-    <origin xyz="0 0 0" rpy="0 0 0"/>
-  </xacro:sensor_d435>
-
 
 </robot>
