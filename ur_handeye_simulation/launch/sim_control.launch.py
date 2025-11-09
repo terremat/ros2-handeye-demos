@@ -8,14 +8,49 @@ from launch.substitutions import PathJoinSubstitution, IfElseSubstitution, Launc
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
 
+import os
+from ament_index_python.packages import get_package_share_directory
 
 """
 Start the robot with simulated hardware provided by Gazebo simulator
 """
 
+def build_gz_resource_path(package_names):
+    """
+    Build a colon-separated string of Gazebo resource paths for the given packages.
+
+    Args:
+        package_names (list[str]): List of ROS 2 package names.
+
+    Returns:
+        str: A colon-separated path string suitable for GZ_SIM_RESOURCE_PATH.
+    """
+    share_paths = []
+    for pkg in package_names:
+        try:
+            # Get /install/<pkg>/share/<pkg>
+            pkg_share = get_package_share_directory(pkg)
+            # We want the parent '.../share', not the package subdir itself
+            share_paths.append(os.path.dirname(pkg_share))
+        except Exception as e:
+            print(f"[WARN] Could not find package '{pkg}': {e}")
+
+    # Include any existing GZ_SIM_RESOURCE_PATH
+    existing = os.environ.get('GZ_SIM_RESOURCE_PATH', '')
+    if existing:
+        share_paths.append(existing)
+
+    return ":".join(share_paths)
+
+
+
 def generate_launch_description():
     simulation_package = FindPackageShare('ur_handeye_simulation')
-    description_package = FindPackageShare("ur_handeye_description")
+
+    gz_resource_path = build_gz_resource_path([
+        'ur_handeye_description',
+        'ur_handeye_simulation',
+    ])
 
     # General arguments
     gazebo_gui = LaunchConfiguration("gazebo_gui")
@@ -56,6 +91,15 @@ def generate_launch_description():
     ###############
     # GZ nodes
     ###############
+
+    gz_resource_env = SetEnvironmentVariable(
+        name='GZ_SIM_RESOURCE_PATH',
+        value=gz_resource_path
+    )
+    print("************************")
+    print(gz_resource_path)
+    print(os.environ.get('GZ_SIM_RESOURCE_PATH', ''))
+    print("************************")
     
     # Spawn robot into Gazebo
     gz_spawn_entity = Node(
@@ -101,6 +145,7 @@ def generate_launch_description():
     )
 
     nodes_to_start = [
+        gz_resource_env,
         rviz_node,
         robot_state_publisher_node,
         joint_state_broadcaster_spawner,

@@ -25,18 +25,22 @@
     <link name="table1">
       <visual>
         <geometry>
-          <box size="1.50 1.00 2"/>
-          <!-- <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/> -->
+          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/>
         </geometry>
         <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
       </visual>
       <collision>
         <geometry>
-          <box size="1.50 1.00 2"/>
-          <!-- <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/> -->
+          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/> 
         </geometry>
         <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
       </collision>
+      <inertial>
+    <mass value="2"/>
+    <inertia ixx="0.0001" ixy="0" ixz="0"
+              iyy="0.0001" iyz="0"
+              izz="0.0001"/>
+  </inertial>
     </link>
     <joint name="ground_to_table1" type="fixed">
       <xacro:insert_block name="origin" />
@@ -47,18 +51,22 @@
     <link name="table2">
       <visual>
         <geometry>
-          <box size="1.50 1.00 2"/>
-          <!-- <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/> -->
+          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/> 
         </geometry>
         <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
       </visual>
       <collision>
         <geometry>
-          <box size="1.50 1.00 2"/>
-          <!-- <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/> -->
+          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/>
         </geometry>
         <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
       </collision>
+      <inertial>
+    <mass value="2"/>
+    <inertia ixx="0.0001" ixy="0" ixz="0"
+              iyy="0.0001" iyz="0"
+              izz="0.0001"/>
+  </inertial>
     </link>
     <joint name="ground_to_table2" type="fixed">
       <parent link="table1" />
@@ -70,14 +78,12 @@
     <link name="monitor">
       <visual>
         <geometry>          
-          <box size="0.5 0.1 0.5"/>
-          <!-- <mesh filename="package://ur_handeye_description/meshes/171005_Motek_Monitor_L.dae"/> -->
+          <mesh filename="package://ur_handeye_description/meshes/171005_Motek_Monitor_L.dae"/>
         </geometry>
       </visual>
       <collision>
         <geometry>
-          <box size="0.5 0.1 0.5"/>
-          <!-- <mesh filename="package://ur_handeye_description/meshes/171005_Motek_Monitor_L.dae"/> -->
+          <mesh filename="package://ur_handeye_description/meshes/171005_Motek_Monitor_L.dae"/>
         </geometry>
       </collision>
     </link>
