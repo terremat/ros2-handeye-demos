@@ -1,12 +1,13 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import LogInfo
+from launch.actions import LogInfo, RegisterEventHandler
 from launch.actions import SetEnvironmentVariable, DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution, IfElseSubstitution, LaunchConfiguration, Command, FindExecutable
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
+from launch.event_handlers import OnProcessExit
 
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -56,6 +57,8 @@ def generate_launch_description():
     gazebo_gui = LaunchConfiguration("gazebo_gui")
     world_file = LaunchConfiguration('world')
     launch_rviz = LaunchConfiguration("launch_rviz")
+    activate_joint_controller = LaunchConfiguration("activate_joint_controller")
+    initial_joint_controller = LaunchConfiguration("initial_joint_controller")
 
     rviz_config_file = PathJoinSubstitution([simulation_package, "rviz", "urdf.rviz"])
     description_file = PathJoinSubstitution([simulation_package, "urdf", "ur_handeye_workcell.urdf.xacro"])
@@ -146,15 +149,40 @@ def generate_launch_description():
         executable="spawner",
         arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
     )
+    
+    # Delay rviz start after `joint_state_broadcaster`
+    delay_rviz_after_joint_state_broadcaster_spawner = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=joint_state_broadcaster_spawner,
+            on_exit=[rviz_node],
+        ),
+        condition=IfCondition(launch_rviz),
+    )
+
+    # There may be other controllers of the joints, but this is the initially-started one
+    initial_joint_controller_spawner_started = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[initial_joint_controller, "-c", "/controller_manager"],
+        condition=IfCondition(activate_joint_controller),
+    )
+    initial_joint_controller_spawner_stopped = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[initial_joint_controller, "-c", "/controller_manager", "--stopped"],
+        condition=UnlessCondition(activate_joint_controller),
+    )
 
     nodes_to_start = [
         gz_resource_env,
-        rviz_node,
         robot_state_publisher_node,
         joint_state_broadcaster_spawner,
+        delay_rviz_after_joint_state_broadcaster_spawner,
         gz_spawn_entity,
         gz_launch_description,
         gz_sim_bridge,
+        initial_joint_controller_spawner_started,
+        initial_joint_controller_spawner_stopped
     ]
 
     ###############
@@ -175,6 +203,20 @@ def generate_launch_description():
     )
     declared_arguments.append(
         DeclareLaunchArgument("launch_rviz", default_value="true", description="Launch RViz?")
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "activate_joint_controller",
+            default_value="true",
+            description="Enable headless mode for robot control",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "initial_joint_controller",
+            default_value="forward_position_controller",
+            description="Robot controller to start.",
+        )
     )
 
 
