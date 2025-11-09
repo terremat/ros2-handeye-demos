@@ -3,13 +3,18 @@
   <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
 
   <xacro:macro name="ur_handeye_workcell" params="
+    name
+    tf_prefix
     parent
     *origin
-    ur_type
     joint_limits_parameters_file
     kinematics_parameters_file
     physical_parameters_file
     visual_parameters_file
+    safety_limits:=false
+    safety_pos_margin:=0.15
+    safety_k_position:=20
+    force_abs_paths:=false
     ">
 
     <material name="white">
@@ -20,13 +25,15 @@
     <link name="table1">
       <visual>
         <geometry>
-          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/>
+          <box size="1.50 1.00 2"/>
+          <!-- <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/> -->
         </geometry>
         <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
       </visual>
       <collision>
         <geometry>
-          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/>
+          <box size="1.50 1.00 2"/>
+          <!-- <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/> -->
         </geometry>
         <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
       </collision>
@@ -40,13 +47,15 @@
     <link name="table2">
       <visual>
         <geometry>
-          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/>
+          <box size="1.50 1.00 2"/>
+          <!-- <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/> -->
         </geometry>
         <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
       </visual>
       <collision>
         <geometry>
-          <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/>
+          <box size="1.50 1.00 2"/>
+          <!-- <mesh filename="package://ur_handeye_description/meshes/fzi_table.dae"/> -->
         </geometry>
         <origin rpy="0 0 0" xyz="0.75 0.5 -1"/>
       </collision>
@@ -60,13 +69,15 @@
 
     <link name="monitor">
       <visual>
-        <geometry>
-          <mesh filename="package://ur_handeye_description/meshes/171005_Motek_Monitor_L.dae"/>
+        <geometry>          
+          <box size="0.5 0.1 0.5"/>
+          <!-- <mesh filename="package://ur_handeye_description/meshes/171005_Motek_Monitor_L.dae"/> -->
         </geometry>
       </visual>
       <collision>
         <geometry>
-          <mesh filename="package://ur_handeye_description/meshes/171005_Motek_Monitor_L.dae"/>
+          <box size="0.5 0.1 0.5"/>
+          <!-- <mesh filename="package://ur_handeye_description/meshes/171005_Motek_Monitor_L.dae"/> -->
         </geometry>
       </collision>
     </link>
@@ -87,13 +98,17 @@
 
     <!--This will create the specific robot-->
     <xacro:ur_robot
-      name="${ur_type}"
-      tf_prefix="${ur_type}_"
+      name="${name}"
+      tf_prefix="${tf_prefix}"
       parent="robot_mount"
       joint_limits_parameters_file="${joint_limits_parameters_file}"
       kinematics_parameters_file="${kinematics_parameters_file}"
       physical_parameters_file="${physical_parameters_file}"
       visual_parameters_file="${visual_parameters_file}"
+      safety_limits="${safety_limits}"
+      safety_pos_margin="${safety_pos_margin}"
+      safety_k_position="${safety_k_position}"
+      force_abs_paths="true"
     >
       <origin xyz="0 0 0" rpy="0 0 0" />
     </xacro:ur_robot>
