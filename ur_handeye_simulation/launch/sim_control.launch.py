@@ -55,11 +55,12 @@ def generate_launch_description():
 
     # General arguments
     gazebo_gui = LaunchConfiguration("gazebo_gui")
-    world_file = LaunchConfiguration('world')
+    world_name = LaunchConfiguration('world')
     launch_rviz = LaunchConfiguration("launch_rviz")
     activate_joint_controller = LaunchConfiguration("activate_joint_controller")
     initial_joint_controller = LaunchConfiguration("initial_joint_controller")
 
+    world_file = PathJoinSubstitution([simulation_package, "worlds", world_name])
     rviz_config_file = PathJoinSubstitution([simulation_package, "rviz", "urdf.rviz"])
     description_file = PathJoinSubstitution([simulation_package, "urdf", "ur_handeye_workcell.urdf.xacro"])
 
@@ -192,7 +193,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             'world',
-            default_value=PathJoinSubstitution([simulation_package, 'worlds', 'empty.sdf']),
+            default_value="empty.sdf",
             description='Name of the world file to load (inside the worlds/ folder of the simulation package)'
         )
     )

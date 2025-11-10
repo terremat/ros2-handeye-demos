@@ -58,9 +58,14 @@
 
     <!-- Pattern -->
     <include>
-      <name>pattern</name>
-      <uri>package://ur_handeye_simulation/models/checker_200x150_9x12_15</uri>
-      <pose>1.5 0.5 1.1 0 0 0 </pose>
+      <name>handeye_pattern</name>
+      <uri>package://ur_handeye_simulation/models/checker_default</uri>
+      <plugin filename="ignition-gazebo-detachable-joint-system"
+        name="ignition::gazebo::systems::DetachableJoint">
+        <parent_link>wrist_3_link</parent_link>
+        <child_model>handeye_pattern</child_model>
+        <child_link>checker_link</child_link>
+      </plugin>
     </include>
 
     <!-- Camera -->

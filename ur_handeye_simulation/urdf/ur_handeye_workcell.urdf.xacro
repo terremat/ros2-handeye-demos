@@ -48,7 +48,6 @@
 
   <!-- GAZEBO -->
   <gazebo>
-    <plugin name="gz::sim::systems::Sensors" filename="gz-sim-sensors-system"/>
     <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
       <parameters>$(arg simulation_controllers)</parameters>
       <ros>
