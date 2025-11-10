@@ -31,7 +31,7 @@
         <origin xyz="0 0 0" rpy="0 0 0"/>
     </xacro:sensor_d435>
 
-    <!-- Gazebo plugin providing image stream -->
+    <!-- Gazebo plugin providing image stream (require "gz-sim-sensors-system")-->
     <gazebo reference="${name}_color_frame">
       <sensor name="${name}_sensor" type="camera"> 
         <camera>
