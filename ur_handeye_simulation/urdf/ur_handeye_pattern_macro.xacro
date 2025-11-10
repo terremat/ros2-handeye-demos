@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+
+<robot name="handeye_pattern" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:macro name="handeye_pattern" params="
+    name
+    parent
+    *origin
+    width
+    height
+    texture_path
+    ">
+    <joint name="${name}_joint" type="fixed">
+        <xacro:insert_block name="origin" />
+        <parent link="${parent}"/>
+        <child link="${name}_base_link"/>    
+    </joint>
+
+    <link name="${name}_base_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${width} ${height} 0.001"/>
+        </geometry>
+        <material name="${name}_texture">
+         <!-- <texture filename="${texture_path}"/> --> 
+         <texture filename="file://${texture_path}"/> 
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${width} ${height} 0.001"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.1"/>
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+      </inertial>
+    </link>
+
+    <!-- === Gazebo material definition for the texture === -->
+    <gazebo reference="${name}_base_link">
+      <visual>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0.4 0.4 0.4 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>file://${texture_path}</albedo_map>
+            </metal>
+          </pbr>
+      </material>
+      </visual>
+    </gazebo>
+
+  </xacro:macro>
+</robot>
+

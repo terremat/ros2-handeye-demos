@@ -3,6 +3,7 @@
 
   <xacro:include filename="$(find ur_handeye_description)/urdf/ur_handeye_workcell_macro.xacro"/>
   <xacro:include filename="$(find ur_handeye_simulation)/urdf/ur_handeye_camera_macro.xacro"/>
+  <xacro:include filename="$(find ur_handeye_simulation)/urdf/ur_handeye_pattern_macro.xacro"/>
   <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro" />
 
   <xacro:arg name="ur_type" default="ur10"/>
@@ -45,6 +46,17 @@
   >
     <origin xyz="0 0.5 2" rpy="0 ${pi/6} 0 " />
   </xacro:handeye_camera>
+
+  <!-- PATTERN -->
+  <xacro:handeye_pattern
+    name="pattern"
+    parent="world"
+    width="0.9"
+    height="0.8"
+    texture_path="$(find ur_handeye_simulation)/models/textures/pattern2.png"
+  >
+    <origin xyz="1.5 0.5 1.05" rpy="0 0 0 " />
+  </xacro:handeye_pattern>
 
   <!-- GAZEBO -->
   <gazebo>
