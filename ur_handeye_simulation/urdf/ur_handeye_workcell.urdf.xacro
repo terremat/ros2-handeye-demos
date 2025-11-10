@@ -6,6 +6,9 @@
   <xacro:include filename="$(find ur_handeye_simulation)/urdf/ur_handeye_pattern_macro.xacro"/>
   <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro" />
 
+  <!-- options: eye_to_hand, eye_in_hand -->
+  <xacro:arg name="handeye_setup" default="eye_in_hand"/>
+
   <xacro:arg name="ur_type" default="ur10"/>
   <xacro:arg name="name" default="ur"/>
   <xacro:arg name="tf_prefix" default="" />
@@ -39,24 +42,57 @@
       <origin xyz="0 0 1" rpy="0 0 0" />
   </xacro:ur_handeye_workcell>
 
-  <!-- HAND-EYE-->
-  <xacro:handeye_camera
-    name="eye_to_hand_camera"
-    parent="world"
-  >
-    <origin xyz="0 0.5 2" rpy="0 ${pi/6} 0 " />
-  </xacro:handeye_camera>
 
-  <!-- PATTERN -->
-  <xacro:handeye_pattern
-    name="pattern"
-    parent="world"
-    width="0.9"
-    height="0.8"
-    texture_path="$(find ur_handeye_simulation)/models/textures/pattern2.png"
-  >
-    <origin xyz="1.5 0.5 1.05" rpy="0 0 0 " />
-  </xacro:handeye_pattern>
+  <!-- ============================================================================ -->
+  <!-- Hand-eye setups settings                                                     -->
+  <!-- ============================================================================ -->
+  
+  <xacro:property name="setup" value="$(arg handeye_setup)"/>
+
+  <!-- Eye-to-Hand -->
+  <xacro:if value="${setup == 'eye_to_hand'}">
+
+    <xacro:handeye_camera
+      name="eye_to_hand_camera"
+      parent="world"
+    >
+      <origin xyz="0 0.5 2" rpy="0 ${pi/6} 0" />
+    </xacro:handeye_camera>
+
+    <xacro:handeye_pattern
+      name="pattern"
+      parent="tool0"
+      width="0.9"
+      height="0.8"
+      texture_path="$(find ur_handeye_simulation)/models/textures/pattern2.png"
+    >
+      <origin xyz="0 0 0.05" rpy="0 0 0" />
+    </xacro:handeye_pattern>
+  </xacro:if>
+
+
+  <xacro:if value="${setup == 'eye_in_hand'}">
+
+    <xacro:handeye_camera
+      name="eye_in_hand_camera"
+      parent="tool0" 
+    >
+      <origin xyz="0 -0.05 0.02" rpy="${pi/2} ${-pi/2} 0" />
+    </xacro:handeye_camera>
+
+    <xacro:handeye_pattern
+      name="pattern"
+      parent="world"
+      width="0.9"
+      height="0.8"
+      texture_path="$(find ur_handeye_simulation)/models/textures/pattern2.png"
+    >
+      <origin xyz="1.5 0.5 1.05" rpy="0 0 0" />
+    </xacro:handeye_pattern>
+  </xacro:if>
+
+  <!-- ============================================================================ -->
+
 
   <!-- GAZEBO -->
   <gazebo>
