@@ -7,7 +7,7 @@
   <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro" />
 
   <!-- options: eye_to_hand, eye_in_hand -->
-  <xacro:arg name="handeye_setup" default="eye_in_hand"/>
+  <xacro:arg name="handeye_setup" default=""/>
 
   <xacro:arg name="ur_type" default="ur10"/>
   <xacro:arg name="name" default="ur"/>

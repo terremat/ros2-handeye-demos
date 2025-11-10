@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: ur_handeye_description
+    relative_path: urdf/ur_handeye_workcell.urdf.xacro
+  srdf:
+    relative_path: config/ur_handeye_workcell.srdf
+  package_settings:
+    author_name: Matteo Terreran
+    author_email: matteo.terreran@unipd.it
+    generated_timestamp: 1762793771
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity

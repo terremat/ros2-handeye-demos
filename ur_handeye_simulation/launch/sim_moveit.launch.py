@@ -10,7 +10,9 @@ def generate_launch_description():
 
     # General arguments
     ur_type = "ur10"
-    moveit_launch_file = PathJoinSubstitution([FindPackageShare("ur_moveit_config"), "launch", "ur_moveit.launch.py"])
+    #moveit_launch_file = PathJoinSubstitution([FindPackageShare("ur_moveit_config"), "launch", "ur_moveit.launch.py"])
+    moveit_launch_file = PathJoinSubstitution([FindPackageShare("ur_handeye_moveit_config"), "launch", "ur_handeye_moveit.launch.py"])
+
     # Gazebo simulation
     ur_control_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
