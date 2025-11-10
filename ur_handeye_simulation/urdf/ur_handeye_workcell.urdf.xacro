@@ -5,7 +5,7 @@
   <xacro:include filename="$(find ur_handeye_simulation)/urdf/ur_handeye_camera_macro.xacro"/>
   <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro" />
 
-  <xacro:arg name="ur_type" default="ur20"/>
+  <xacro:arg name="ur_type" default="ur10"/>
   <xacro:arg name="name" default="ur"/>
   <xacro:arg name="tf_prefix" default="" />
   <xacro:arg name="joint_limits_parameters_file" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
@@ -16,7 +16,7 @@
   <xacro:arg name="safety_pos_margin" default="0.15"/>
   <xacro:arg name="safety_k_position" default="20"/>
 
-  <xacro:arg name="simulation_controllers" default="$(find ur_simulation_gz)/config/ur_controllers.yaml" />
+  <xacro:arg name="simulation_controllers" default="$(find ur_handeye_simulation)/config/ur_controllers.yaml" />
   <xacro:arg name="transmission_hw_interface" default=""/>
   <xacro:arg name="ros_namespace" default="" />
 

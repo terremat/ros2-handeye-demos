@@ -211,10 +211,16 @@ def generate_launch_description():
             description="Enable headless mode for robot control",
         )
     )
+
+    # Available controllers:
+    # - forward_position_controller
+    # - joint_trajectory_controller
+    # - scaled_joint_trajectory_controller
+    #
     declared_arguments.append(
         DeclareLaunchArgument(
             "initial_joint_controller",
-            default_value="forward_position_controller",
+            default_value="scaled_joint_trajectory_controller",
             description="Robot controller to start.",
         )
     )
