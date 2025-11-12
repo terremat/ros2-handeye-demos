@@ -49,6 +49,10 @@
   
   <xacro:property name="setup" value="$(arg handeye_setup)"/>
 
+  <xacro:property name="pattern_width"   value="0.200"/>
+  <xacro:property name="pattern_height"  value="0.200"/>
+  <xacro:property name="pattern_texture" value="checker_200x200_8x9_20.png"/>
+
   <!-- Eye-to-Hand -->
   <xacro:if value="${setup == 'eye_to_hand'}">
 
@@ -62,9 +66,9 @@
     <xacro:handeye_pattern
       name="pattern"
       parent="tool0"
-      width="0.9"
-      height="0.8"
-      texture_path="$(find ur_handeye_simulation)/models/textures/pattern2.png"
+      width="${pattern_width}"
+      height="${pattern_height}"
+      texture_path="$(find ur_handeye_simulation)/models/textures/${pattern_texture}"
     >
       <origin xyz="0 0 0.05" rpy="0 0 0" />
     </xacro:handeye_pattern>
@@ -83,9 +87,9 @@
     <xacro:handeye_pattern
       name="pattern"
       parent="world"
-      width="0.9"
-      height="0.8"
-      texture_path="$(find ur_handeye_simulation)/models/textures/pattern2.png"
+      width="${pattern_width}"
+      height="${pattern_height}"
+      texture_path="$(find ur_handeye_simulation)/models/textures/${pattern_texture}"
     >
       <origin xyz="1.5 0.5 1.05" rpy="0 0 0" />
     </xacro:handeye_pattern>

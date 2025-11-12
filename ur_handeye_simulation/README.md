@@ -26,3 +26,8 @@ Note that /forward_position_controller ignore dynamics (used for testing control
 ```bash
 ros2 topic pub /forward_position_controller/commands std_msgs/msg/Float64MultiArray "data: [0.0, -1.57, 1.57, 0.0, 0.0, 0.0]"
 ```
+
+
+```bash
+ros2 launch ur_handeye_simulation sim_moveit.launch.py handeye_setup:=eye_to_hand
+```
