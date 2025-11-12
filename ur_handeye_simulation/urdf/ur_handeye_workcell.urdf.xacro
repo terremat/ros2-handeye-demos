@@ -91,7 +91,7 @@
       height="${pattern_height}"
       texture_path="$(find ur_handeye_simulation)/models/textures/${pattern_texture}"
     >
-      <origin xyz="1.5 0.5 1.05" rpy="0 0 0" />
+      <origin xyz="1.8 0.4 1.05" rpy="0 0 0" />
     </xacro:handeye_pattern>
   </xacro:if>
 
