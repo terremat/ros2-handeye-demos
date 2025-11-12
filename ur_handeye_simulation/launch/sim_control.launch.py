@@ -59,7 +59,8 @@ def generate_launch_description():
     launch_rviz = LaunchConfiguration("launch_rviz")
     activate_joint_controller = LaunchConfiguration("activate_joint_controller")
     initial_joint_controller = LaunchConfiguration("initial_joint_controller")
-
+    handeye_setup = LaunchConfiguration("handeye_setup")
+    
     world_file = PathJoinSubstitution([simulation_package, "worlds", world_name])
     rviz_config_file = PathJoinSubstitution([simulation_package, "rviz", "urdf.rviz"])
     description_file = PathJoinSubstitution([simulation_package, "urdf", "ur_handeye_workcell.urdf.xacro"])
@@ -70,7 +71,11 @@ def generate_launch_description():
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
-            description_file
+            description_file,
+            " ",
+            "handeye_setup:=",
+            handeye_setup,
+
         ]
     )
 
@@ -212,6 +217,14 @@ def generate_launch_description():
             description="Enable headless mode for robot control",
         )
     )
+    declared_arguments.append(       
+        DeclareLaunchArgument(
+            "handeye_setup",
+            default_value="eye_to_hand",
+            description="Select hand-eye setup: 'none', 'eye_in_hand' or 'eye_to_hand'",
+        )
+    )
+
 
     # Available controllers:
     # - forward_position_controller

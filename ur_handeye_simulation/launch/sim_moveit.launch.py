@@ -13,6 +13,9 @@ def generate_launch_description():
     #moveit_launch_file = PathJoinSubstitution([FindPackageShare("ur_moveit_config"), "launch", "ur_moveit.launch.py"])
     moveit_launch_file = PathJoinSubstitution([FindPackageShare("ur_handeye_moveit_config"), "launch", "ur_handeye_moveit.launch.py"])
 
+    # Use the argument value
+    handeye_setup = LaunchConfiguration("handeye_setup")
+
     # Gazebo simulation
     ur_control_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -22,6 +25,7 @@ def generate_launch_description():
         ),
         launch_arguments={
             "launch_rviz": "false",
+            "handeye_setup": handeye_setup,
         }.items(),
     )
 
@@ -40,7 +44,13 @@ def generate_launch_description():
         ur_moveit_launch,
     ]
 
-    declared_arguments = []
+    declared_arguments = [        
+        DeclareLaunchArgument(
+            "handeye_setup",
+            default_value="eye_to_hand",
+            description="Select hand-eye setup: 'none', 'eye_in_hand' or 'eye_to_hand'",
+        )
+    ]
 
 
     return LaunchDescription(declared_arguments + nodes_to_start)
