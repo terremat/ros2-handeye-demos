@@ -25,6 +25,7 @@ setup(
     entry_points={
             'console_scripts': [
                     'hello = ur_handeye_app.hello:main',
+                    'test_moveit = ur_handeye_app.test_moveit:main',
             ],
     },
 )
