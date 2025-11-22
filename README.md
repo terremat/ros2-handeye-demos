@@ -31,7 +31,7 @@ Make sure the following dependencies are installed:
 ```bash
 sudo apt update
 sudo apt install ros-jazzy-moveit \
-                 ros-jazzy-gazebo-ros-pkgs \
+                 ros-jazzy-ros-gz \
                  ros-jazzy-ros2-control \
                  ros-jazzy-ros2-controllers \
                  ros-rolling-ur
