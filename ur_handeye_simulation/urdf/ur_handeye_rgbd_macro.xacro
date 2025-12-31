@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+
+<robot name="handeye_rgbd" xmlns:xacro="http://ros.org/wiki/xacro">
+  <!-- Includes -->
+  <xacro:include filename="$(find ur_handeye_description)/urdf/cameras/_d435.urdf.xacro"/>
+
+  <xacro:macro name="handeye_rgbd" params="
+    name
+    parent
+    *origin
+    image_width:=640
+    image_height:=480
+    fov_h:=1.047
+    ">
+
+    <joint name="${name}_base_link_joint" type="fixed">
+        <xacro:insert_block name="origin" />
+        <parent link="${parent}"/>
+        <child link="${name}_base_link"/>    
+    </joint>
+
+    <link name="${name}_base_link" />
+    
+    <!-- Mesh disable to avoid rendering issues in RGBD data -->
+    <xacro:sensor_d435 
+        parent="${name}_base_link" 
+        name="${name}"
+        use_nominal_extrinsics="true" 
+        add_plug="false" 
+        use_mesh="false"
+    >
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:sensor_d435>
+
+    <!-- Gazebo plugin providing RGBD stream (require "gz-sim-sensors-system")-->
+    <gazebo reference="${name}_color_frame">
+      <sensor name="${name}_rgbd_sensor" type="rgbd_camera"> 
+        <camera>
+          <optical_frame_id>${name}_color_frame</optical_frame_id>
+          <horizontal_fov>${fov_h}</horizontal_fov>
+          <image>
+            <width>${image_width}</width>
+            <height>${image_height}</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.01</near>
+            <far>10.0</far>
+          </clip>
+        </camera>
+        <depth_camera>
+          <clip>
+            <near>0.01</near>
+            <far>10.0</far>
+          </clip>
+        </depth_camera>
+        <always_on>true</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+      </sensor>
+    </gazebo>
+
+    </xacro:macro>
+</robot>

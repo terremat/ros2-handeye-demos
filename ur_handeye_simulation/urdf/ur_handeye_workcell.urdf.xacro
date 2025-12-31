@@ -4,6 +4,7 @@
   <xacro:include filename="$(find ur_handeye_description)/urdf/ur_handeye_workcell_macro.xacro"/>
   <xacro:include filename="$(find ur_handeye_simulation)/urdf/ur_handeye_camera_macro.xacro"/>
   <xacro:include filename="$(find ur_handeye_simulation)/urdf/ur_handeye_pattern_macro.xacro"/>
+  <xacro:include filename="$(find ur_handeye_simulation)/urdf/ur_handeye_rgbd_macro.xacro"/>
   <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro" />
 
   <!-- options: eye_to_hand, eye_in_hand -->
@@ -97,12 +98,12 @@
 
   <xacro:if value="${setup == 'none'}">
 
-    <xacro:handeye_camera
+    <xacro:handeye_rgbd
       name="eye_in_hand_camera"
       parent="tool0" 
     >
       <origin xyz="0 -0.05 0.02" rpy="${pi/2} ${-pi/2} 0" />
-    </xacro:handeye_camera>
+    </xacro:handeye_rgbd>
   </xacro:if>
 
   <!-- ============================================================================ -->
