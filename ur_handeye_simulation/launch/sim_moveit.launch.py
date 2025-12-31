@@ -47,7 +47,7 @@ def generate_launch_description():
     declared_arguments = [        
         DeclareLaunchArgument(
             "handeye_setup",
-            default_value="eye_to_hand",
+            default_value="none",
             description="Select hand-eye setup: 'none', 'eye_in_hand' or 'eye_to_hand'",
         )
     ]

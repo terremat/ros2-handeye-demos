@@ -198,7 +198,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             'world',
-            default_value="empty.sdf",
+            default_value="empty_shadow.sdf",
             description='Name of the world file to load (inside the worlds/ folder of the simulation package)'
         )
     )
