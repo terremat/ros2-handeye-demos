@@ -4,6 +4,7 @@ import json
 import yaml
 import threading
 import datetime
+import time
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -14,6 +15,7 @@ from sensor_msgs.msg import JointState
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 #from image_transport import ImageTransport
+from std_srvs.srv import Trigger
 
 import tf2_ros
 from tf2_ros import Buffer, TransformListener
@@ -57,6 +59,14 @@ class HandEyeDataAcquisitionNode(Node):
         self.verbose = False
         self.gui = True
 
+        self.move_robot = True
+        if self.move_robot:
+            self.get_logger().info("Wait for 'execute_joint_targets' service to be available...")
+            self.cli = self.create_client(Trigger, 'execute_joint_targets')
+            while not self.cli.wait_for_service(timeout_sec=1.0):
+                self.get_logger().info('service not available, waiting again...')
+            self.get_logger().info("'execute_joint_targets' service is now available.")
+
         # Create TF buffer and listener
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -66,6 +76,7 @@ class HandEyeDataAcquisitionNode(Node):
         self.base_frame = 'base_link'
         self.tool_frame = 'tool0'
         self.cam1_frame = 'eye_in_hand_camera_color_optical_frame'
+        self.pcd1_frame = 'eye_in_hand_camera_color_frame'
 
         # Robot data
         self.create_subscription(JointState, "/joint_states", self.joint_cb, 10)
@@ -75,7 +86,7 @@ class HandEyeDataAcquisitionNode(Node):
         self.image1_topic = '/camera/color/image_raw'
         self.image1_cinfo = '/camera/color/camera_info'
         self.depth1_topic = '/camera/depth/image_raw'
-        self.points_topic = '/camera/depth/points'
+        self.points_topic = '/camera/points'
 
         self.get_logger().info(f"Subscribe to {self.image1_topic}...")
         self.image1_sub = self.create_subscription(Image, self.image1_topic, self.image1_callback, 10)
@@ -95,6 +106,7 @@ class HandEyeDataAcquisitionNode(Node):
         self.current_pcd = {'points': None, 'colors': None}
         self.current_pcd_t = None
 
+
  
         # Save directory for data
         self.save_dir = 'data_captures'
@@ -108,6 +120,7 @@ class HandEyeDataAcquisitionNode(Node):
         os.makedirs( os.path.join(self.save_dir_camera1, "image"), exist_ok=True)
         os.makedirs( os.path.join(self.save_dir_camera1, "pose"),  exist_ok=True)
         os.makedirs( os.path.join(self.save_dir_camera1, "clouds"), exist_ok=True)
+        os.makedirs( os.path.join(self.save_dir_camera1, "clouds_pose"), exist_ok=True)
         os.makedirs( os.path.join(self.save_dir_camera1, "depth"), exist_ok=True)
 
         timestamp_file = open(os.path.join(self.save_dir, "timestamps.txt"), "w")
@@ -142,6 +155,7 @@ class HandEyeDataAcquisitionNode(Node):
         try:
             self.current_state, self.current_state_t = self.get_transform_matrix(self.base_frame, self.tool_frame)
             self.current_cam_pose, self.current_cam_pose_t = self.get_transform_matrix(self.base_frame, self.cam1_frame)
+            self.current_pcd_pose, self.current_pcd_pose_t = self.get_transform_matrix(self.base_frame, self.pcd1_frame)
 
             # TFBuffer ready to provide transformations
             if not self.is_ready:
@@ -199,7 +213,7 @@ class HandEyeDataAcquisitionNode(Node):
             r = (int(rgb) >> 16) & 0x0000ff
             g = (int(rgb) >> 8) & 0x0000ff
             b = (int(rgb)) & 0x0000ff
-            points.append([x, y, z])
+            points.append([float(x), float(y), float(z)])
             colors.append([r / 255.0, g / 255.0, b / 255.0])
 
         if len(points) == 0:
@@ -210,7 +224,7 @@ class HandEyeDataAcquisitionNode(Node):
         # Convert to NumPy arrays
         points_array = np.array(points, dtype=np.float32)
         colors_array = np.array(colors, dtype=np.float32)
-        
+
         # Create Open3D point cloud
         #self.current_pcd = o3d.geometry.PointCloud()
         #self.current_pcd.points = o3d.utility.Vector3dVector(points)
@@ -240,7 +254,30 @@ class HandEyeDataAcquisitionNode(Node):
     def wait_for_input(self):
         while rclpy.ok():
             input()  # attende pressione INVIO
-            self.save_data()
+
+            # Move robot
+            if self.move_robot:
+                self.get_logger().info("Moving robot to a new pose...")
+                request = Trigger.Request()
+                future = self.cli.call_async(request)
+                future.add_done_callback(self.trigger_response_cb)
+            
+            else:
+                self.save_data()
+
+    def trigger_response_cb(self, future):
+        try:
+            response = future.result()
+            self.get_logger().info(
+                f"Service response: success={response.success}, "
+                f"message='{response.message}'"
+            )
+            if response.success:
+                time.sleep(1)  # wait a bit for data to stabilize
+                self.save_data()
+        except Exception as e:
+            self.get_logger().error(f"Service call failed: {e}")
+            
 
  
     def save_data(self):
@@ -266,10 +303,14 @@ class HandEyeDataAcquisitionNode(Node):
         for key, item in self.current_pcd.items():
             cloud1_filename = os.path.join(self.save_dir_camera1, "clouds", f'{self.counter:04d}_{key}.npy')
             np.save(cloud1_filename, item)    
+            #np.savetxt(cloud1_filename, item)
         
 
         state_filename = os.path.join(self.save_dir_camera1, 'pose', f'{self.counter:04d}.csv')
         np.savetxt(state_filename, self.current_cam_pose, delimiter=" ")
+        
+        state_filename = os.path.join(self.save_dir_camera1, 'clouds_pose', f'{self.counter:04d}.csv')
+        np.savetxt(state_filename, self.current_pcd_pose, delimiter=" ")
 
         state_filename = os.path.join(self.save_dir_tcppose, 'pose', f'{self.counter:04d}.csv')
         np.savetxt(state_filename, self.current_state, delimiter=" ")
@@ -278,7 +319,10 @@ class HandEyeDataAcquisitionNode(Node):
         joint_filename = os.path.join(self.save_dir_joints, f'{self.counter:04d}.yaml')
 
         data = {
-            "timestamp": self.joint_state.header.stamp,
+            "timestamp": {
+                "sec": int(self.joint_state.header.stamp.sec),
+                "nanosec": int(self.joint_state.header.stamp.nanosec)
+            },
             "joints": {
                 "names": list(self.joint_state.name),
                 "position": list(self.joint_state.position),
@@ -287,7 +331,7 @@ class HandEyeDataAcquisitionNode(Node):
             }
         }
         with open(joint_filename, "w") as f:
-            yaml.dump(data, f, sort_keys=False)
+            yaml.safe_dump(data, f, sort_keys=False)
 
         self.get_logger().info(f"Data saved:\n - {image1_filename}\n - {state_filename}\n")
 

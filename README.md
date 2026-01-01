@@ -85,4 +85,10 @@ You can customize the calibration pattern used in simulation to match your prefe
   <xacro:property name="pattern_texture" value="checker_200x200_8x9_20.png"/>
 ```
 
-   
+## Acquisition pipeline
+
+```
+ros2 launch  ur_handeye_app handeye_data_control.launch.py joint_targets_dir:=path/to/joint/targets
+```
+ros2 run ur_handeye_app data_acquisition --ros-args -p use_sim_time:=true
+```
