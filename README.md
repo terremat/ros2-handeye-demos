@@ -35,7 +35,8 @@ sudo apt install ros-jazzy-moveit \
                  ros-jazzy-ros2-control \
                  ros-jazzy-ros2-controllers \
                  ros-jazzy-ur \
-                 ros-jazzy-ur-simulation-gz
+                 ros-jazzy-ur-simulation-gz \
+                 ros-jazzy-moveit-py
 ```
 
 Then build and source your workspace:
