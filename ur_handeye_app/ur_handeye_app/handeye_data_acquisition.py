@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import json
+import struct
 import yaml
 import threading
 import datetime
@@ -91,6 +92,10 @@ class HandEyeDataAcquisitionNode(Node):
         self.get_logger().info(f"Subscribe to {self.image1_topic}...")
         self.image1_sub = self.create_subscription(Image, self.image1_topic, self.image1_callback, 10)
         
+        self.get_logger().info(f"Subscribe to {self.image1_cinfo}...")
+        self.image1_cinfo_sub = self.create_subscription(CameraInfo, self.image1_cinfo, self.image1_info_callback, 10)
+        
+
         # Depth and pointcloud subscribers
         self.get_logger().info(f"Subscribe to {self.depth1_topic}...")
         self.depth1_sub = self.create_subscription(Image, self.depth1_topic, self.depth1_callback, 10)
@@ -210,9 +215,11 @@ class HandEyeDataAcquisitionNode(Node):
 
         for p in point_cloud2.read_points(msg, field_names=('x', 'y', 'z', 'rgb'), skip_nans=True):
             x, y, z, rgb = p
-            r = (int(rgb) >> 16) & 0x0000ff
-            g = (int(rgb) >> 8) & 0x0000ff
-            b = (int(rgb)) & 0x0000ff
+            # reinterpret float32 bits as uint32
+            rgb_uint32 = struct.unpack('I', struct.pack('f', rgb))[0]
+            r = (rgb_uint32 >> 16) & 0xFF
+            g = (rgb_uint32 >> 8) & 0xFF
+            b = rgb_uint32 & 0xFF
             points.append([float(x), float(y), float(z)])
             colors.append([r / 255.0, g / 255.0, b / 255.0])
 
@@ -247,7 +254,7 @@ class HandEyeDataAcquisitionNode(Node):
 
         with open( os.path.join(self.save_dir_camera1, 'intrinsic_pars_file.yaml'), 'w') as file:
             file.write(file_content)
-        self.destroy_subscription(self.image1_info_sub)
+        self.destroy_subscription(self.image1_cinfo_sub)
         self.get_logger().info("Subscriber camera info 1 removed!")
        
 
