@@ -1,33 +1,30 @@
 #!/usr/bin/env python3
 import os
-import json
 import struct
-import yaml
-import threading
-import datetime
 import time
+import yaml
+import json
+import threading
+import cv2
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, CameraInfo, CompressedImage, PointCloud2
-from sensor_msgs.msg import JointState
-from sensor_msgs.msg import PointCloud2
+from tf2_ros import Buffer, TransformListener
+from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
+from message_filters import Subscriber, ApproximateTimeSynchronizer
+
+from geometry_msgs.msg import TransformStamped
+from sensor_msgs.msg import Image, CameraInfo, PointCloud2
 from sensor_msgs_py import point_cloud2
-#from image_transport import ImageTransport
+from sensor_msgs.msg import JointState
+from cv_bridge import CvBridge
 from std_srvs.srv import Trigger
 
-import tf2_ros
-from tf2_ros import Buffer, TransformListener
-from geometry_msgs.msg import TransformStamped
-
-#import tifffile
-import cv2
-from cv_bridge import CvBridge
-
- 
-# helper function that converts quaternion + translation → 4×4 matrix
+######################################################
+# Utilities
+######################################################
 def transform_to_matrix(t, r):
     """Convert ROS2 translation + quaternion to 4×4 homogeneous matrix."""
     
@@ -44,176 +41,203 @@ def transform_to_matrix(t, r):
     T[0:3, 3] = [t.x, t.y, t.z]
 
     return T
- 
+
+
+def create_output_dirs(base_dir: str):
+    """
+    Create the structured output directories for camera and robot data.
+    
+    Returns a dictionary with paths for easy access.
+    """
+    dirs = {}
+
+    # Camera directories
+    dirs['camera'] = os.path.join(base_dir, 'camera1')
+    dirs['cam_color'] = os.path.join(dirs['camera'], 'color')
+    dirs['cam_depth'] = os.path.join(dirs['camera'], 'depth')
+    dirs['cam_cloud'] = os.path.join(dirs['camera'], 'cloud')
+    dirs['cam_color_pose'] = os.path.join(dirs['camera'], 'color_pose')
+    dirs['cam_cloud_pose'] = os.path.join(dirs['camera'], 'cloud_pose')
+
+    # Robot directories
+    dirs['robot'] = os.path.join(base_dir, 'robot')
+    dirs['robot_pose'] = os.path.join(dirs['robot'], 'pose')
+    dirs['robot_joints'] = os.path.join(dirs['robot'], 'joint_states')
+
+    # Create all directories
+    for path in dirs.values():
+        os.makedirs(path, exist_ok=True)
+
+    return dirs
+
+######################################################
+# HandEye Data Acquisition Node
+######################################################
 class HandEyeDataAcquisitionNode(Node):
 
     def __init__(self):
 
         super().__init__('handeye_data_acquisition_node')
 
-        # State variables
-        self.joint_state = None
-        self.current_state  = None
-        self.current_image1 = None
-        self.counter = 0
-        self.is_ready = False
-        self.verbose = False
-        self.gui = True
+        # Output directories
+        self.output_dir = 'data_captures'
+        self.dirs = create_output_dirs(self.output_dir)
+        
+        # --- Topics ---
+        self.cam_color_topic = '/camera/color/image_raw'
+        self.cam_cinfo_topic = '/camera/color/camera_info'
+        self.cam_depth_topic = '/camera/depth/image_raw'
+        self.cam_cloud_topic = '/camera/points'
+        self.robot_joints_topic = '/joint_states'
 
-        self.move_robot = True
-        if self.move_robot:
-            self.get_logger().info("Wait for 'execute_joint_targets' service to be available...")
-            self.cli = self.create_client(Trigger, 'execute_joint_targets')
-            while not self.cli.wait_for_service(timeout_sec=1.0):
-                self.get_logger().info('service not available, waiting again...')
-            self.get_logger().info("'execute_joint_targets' service is now available.")
-
-        # Create TF buffer and listener
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
-
-        # Timer to query TF periodically
-        self.timer = self.create_timer(0.1, self.lookup_transform)
+        # --- Reference frames ---
         self.base_frame = 'base_link'
         self.tool_frame = 'tool0'
         self.cam1_frame = 'eye_in_hand_camera_color_optical_frame'
         self.pcd1_frame = 'eye_in_hand_camera_color_frame'
 
-        # Robot data
-        self.create_subscription(JointState, "/joint_states", self.joint_cb, 10)
+        # -- Parameters ---
+        self.is_ready = False
+        self.use_robot = True
+        self.use_input = True
+        self.sample_counter = 0
 
-        # TODO: generalize to N cameras
+        # Thread-safe storage
+        self.data_lock = threading.Lock()
+        self.latest_color = None
+        self.latest_depth = None
+        self.latest_cinfo = None
+        self.latest_cloud = None
+        self.latest_joints = None
+
+        # --- Subscribers ---
         self.bridge = CvBridge()
-        self.image1_topic = '/camera/color/image_raw'
-        self.image1_cinfo = '/camera/color/camera_info'
-        self.depth1_topic = '/camera/depth/image_raw'
-        self.points_topic = '/camera/points'
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.get_logger().info(f"Subscribe to {self.image1_topic}...")
-        self.image1_sub = self.create_subscription(Image, self.image1_topic, self.image1_callback, 10)
-        
-        self.get_logger().info(f"Subscribe to {self.image1_cinfo}...")
-        self.image1_cinfo_sub = self.create_subscription(CameraInfo, self.image1_cinfo, self.image1_info_callback, 10)
-        
+        self.cam_cinfo_sub = self.create_subscription(CameraInfo, self.cam_cinfo_topic, self.cinfo_cb, 10)
+        self.create_subscription(JointState, self.robot_joints_topic, self.joints_cb, 10)
+        # Message filters for synchronized subscriptions
+        self.color_sub = Subscriber(self, Image, self.cam_color_topic)
+        self.depth_sub = Subscriber(self, Image, self.cam_depth_topic)
+        self.cloud_sub = Subscriber(self, PointCloud2, self.cam_cloud_topic)
+        self.ts = ApproximateTimeSynchronizer(
+            [self.color_sub, self.depth_sub, self.cloud_sub],
+            queue_size=10,
+            slop=0.05  # 50ms tolerance for approximate sync
+        )
+        self.ts.registerCallback(self.synced_cb)
 
-        # Depth and pointcloud subscribers
-        self.get_logger().info(f"Subscribe to {self.depth1_topic}...")
-        self.depth1_sub = self.create_subscription(Image, self.depth1_topic, self.depth1_callback, 10)
+        # --- Service Clients ---
+        self.move_robot_srv = self.create_client(Trigger, 'execute_joint_targets')
+        if self.use_robot:
+            self.get_logger().info("Wait for 'execute_joint_targets' service to be available...")
+            while not self.move_robot_srv.wait_for_service(timeout_sec=1.0):
+                self.get_logger().info('service not available, waiting again...')
+            self.get_logger().info("'execute_joint_targets' service is now available.")
 
-        self.get_logger().info(f"Subscribe to {self.points_topic}...")
-        self.points_sub = self.create_subscription(PointCloud2, self.points_topic, self.points_callback, 10)
-        
-        # Check on timestamp
-        self.current_state_t  = None
-        self.current_image1_t = None
-        self.current_depth1 = None
-        self.current_depth1_t = None
-        self.current_pcd = {'points': None, 'colors': None}
-        self.current_pcd_t = None
+        # Wait for TFs and services to be ready
+        self.wait_for_ready()
 
+        # Start input thread
+        self.input_thread = threading.Thread(target=self.wait_for_input, daemon=True)
+        self.input_thread.start()
 
- 
-        # Save directory for data
-        self.save_dir = 'data_captures'
-        self.save_dir_camera1 = os.path.join(self.save_dir, "camera1")
-        self.save_dir_tcppose = os.path.join(self.save_dir, 'tcp_pose')
-        self.save_dir_joints  = os.path.join(self.save_dir, 'joint_states')
-        
-        os.makedirs(self.save_dir, exist_ok=True)
-        os.makedirs( os.path.join(self.save_dir_joints), exist_ok=True)
-        os.makedirs( os.path.join(self.save_dir_tcppose, "pose"), exist_ok=True)
-        os.makedirs( os.path.join(self.save_dir_camera1, "image"), exist_ok=True)
-        os.makedirs( os.path.join(self.save_dir_camera1, "pose"),  exist_ok=True)
-        os.makedirs( os.path.join(self.save_dir_camera1, "clouds"), exist_ok=True)
-        os.makedirs( os.path.join(self.save_dir_camera1, "clouds_pose"), exist_ok=True)
-        os.makedirs( os.path.join(self.save_dir_camera1, "depth"), exist_ok=True)
+    # --- Callbacks ---
+    def cinfo_cb(self, msg):
+        with self.data_lock:
+            self.latest_cinfo = msg
+        self.get_logger().debug(f"CameraInfo messages received at {msg.header.stamp.sec}.{msg.header.stamp.nanosec}")
 
-        timestamp_file = open(os.path.join(self.save_dir, "timestamps.txt"), "w")
-        timestamp_file.write(f"Image ID, Current state t, Current_image1_t\n")
-        timestamp_file.close()
- 
-        self.get_logger().info("Start collecting TFs...")
+    def joints_cb(self, msg):
+        with self.data_lock:
+            self.latest_joints = msg
+        self.get_logger().debug(f"JointState messages received at {msg.header.stamp.sec}.{msg.header.stamp.nanosec}")
 
-    def get_transform_matrix(self, target_frame, source_frame):
+    def synced_cb(self, color_msg, depth_msg, cloud_msg):
+        with self.data_lock:
+            self.latest_color = color_msg
+            self.latest_depth = depth_msg
+            self.latest_cloud = cloud_msg
+        self.get_logger().debug(f"Synced messages received at {color_msg.header.stamp.sec}.{color_msg.header.stamp.nanosec}")
+
+    def get_transform_matrix(self, target_frame, source_frame, timestamp=rclpy.time.Time()):
         try:
-            # Lookup transform between frames
+            # Lookup transform between frames, provides "T_target_source"
             transform: TransformStamped = self.tf_buffer.lookup_transform(
-                target_frame,         # target frame
-                source_frame,         # source frame
-                rclpy.time.Time(),    # latest available
+                target_frame,
+                source_frame,
+                timestamp,
                 timeout=rclpy.duration.Duration(seconds=0.5)
             )
-
             t = transform.transform.translation
             r = transform.transform.rotation
-
             matrix = transform_to_matrix(t, r)
-            timestamp = transform.header.stamp.sec + transform.header.stamp.nanosec * 1e-9
-
+            timestamp = transform.header.stamp
             return matrix, timestamp
 
         except Exception as e:
             self.get_logger().warn(f"Could not transform {target_frame} -> {source_frame}: {e}")
             return None, None
+        
 
-    def lookup_transform(self):
+    # --- Saving utilities ---
+    def save_color_image(self, image_msg: Image, sample_name: str):
         try:
-            self.current_state, self.current_state_t = self.get_transform_matrix(self.base_frame, self.tool_frame)
-            self.current_cam_pose, self.current_cam_pose_t = self.get_transform_matrix(self.base_frame, self.cam1_frame)
-            self.current_pcd_pose, self.current_pcd_pose_t = self.get_transform_matrix(self.base_frame, self.pcd1_frame)
-
-            # TFBuffer ready to provide transformations
-            if not self.is_ready:
-                self.is_ready = True
-                self.get_logger().info("✔ First valid TF received.")
-                self.get_logger().info("👉 Press ENTER to start collecting data (images + robot state).")
-
-                # Start the input thread only now
-                self.input_thread = threading.Thread(target=self.wait_for_input, daemon=True)
-                self.input_thread.start()
+            filepath = os.path.join(self.dirs['cam_color'], f"{sample_name}.png")
+            image_cv = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
+            cv2.imwrite(filepath, image_cv)
         except Exception as e:
-            self.get_logger().error(f"Errore lookup_transform: {e}")
+            self.get_logger().error(f"Error saving color image: {e}")
 
- 
-    def joint_cb(self, msg):
-        self.joint_state = msg
-
-    def image1_callback(self, msg):
+    def save_depth_image(self, image_msg: Image, sample_name: str):
         try:
-            self.current_image1 = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-            self.current_image1_t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        except Exception as e:
-            self.get_logger().error(f"Errore conversione immagine: {e}")
-
-    def depth1_callback(self, msg):
-        try:
-            depth_raw = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
-            
+            filepath = os.path.join(self.dirs['cam_depth'], f"{sample_name}.tiff")
+            depth_raw = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="passthrough")
             # Handle encodings
-            if msg.encoding == '32FC1':
+            if image_msg.encoding == '32FC1':
                 # meters → millimeters → uint16
                 depth_mm = np.clip(depth_raw * 1000.0, 0, 65535).astype(np.uint16)
-            elif msg.encoding == '16UC1':
+            elif image_msg.encoding == '16UC1':
                 depth_mm = depth_raw.astype(np.uint16)
             else:
-                self.get_logger().error(f'Unsupported encoding: {msg.encoding}')
+                self.get_logger().error(f'Unsupported encoding: {image_msg.encoding}')
                 return
-
-            self.current_depth1 = depth_mm
-            self.current_depth1_t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-
-
+            cv2.imwrite(filepath, depth_mm)
         except Exception as e:
-            self.get_logger().error(f"Errore conversione immagine: {e}")
+            self.get_logger().error(f"Error saving depth image: {e}")
 
+    def save_camerainfo(self, cinfo_msg: CameraInfo):
+        K = np.array(cinfo_msg.k).reshape([3,3])
+        D = np.array(cinfo_msg.d)
+   
+        # Build a dictionary to save
+        cam_info_dict = {
+            "fx": float(K[0, 0]),
+            "fy": float(K[1, 1]),
+            "cx": float(K[0, 2]),
+            "cy": float(K[1, 2]),
+            "has_dist_coeff": 1 if D.any() else 0,
+            "dist_k0": float(D[0]),
+            "dist_k1": float(D[1]),
+            "dist_px": float(D[2]),
+            "dist_py": float(D[3]),
+            "dist_k2": float(D[4]),
+            "dist_k3": 0.0,
+            "dist_k4": 0.0,
+            "dist_k5": 0.0,
+            "img_width": cinfo_msg.width,
+            "img_height": cinfo_msg.height
+        }
 
+        filename = os.path.join(self.dirs['camera'], 'intrinsic_pars_file.yaml')
+        with open(filename, 'w') as f:
+            yaml.dump(cam_info_dict, f, sort_keys=False)
 
-    def points_callback(self, msg):
-        # Convert PointCloud2 → numpy array
+    def save_pointcloud(self, cloud_msg: PointCloud2, sample_name: str):
         points = []
         colors = []
-
-        for p in point_cloud2.read_points(msg, field_names=('x', 'y', 'z', 'rgb'), skip_nans=True):
+        for p in point_cloud2.read_points(cloud_msg, field_names=('x', 'y', 'z', 'rgb'), skip_nans=True):
             x, y, z, rgb = p
             # reinterpret float32 bits as uint32
             rgb_uint32 = struct.unpack('I', struct.pack('f', rgb))[0]
@@ -227,50 +251,66 @@ class HandEyeDataAcquisitionNode(Node):
             self.get_logger().warn('Empty point cloud')
             return
         
-
         # Convert to NumPy arrays
         points_array = np.array(points, dtype=np.float32)
         colors_array = np.array(colors, dtype=np.float32)
+        np.save(os.path.join(self.dirs['cam_cloud'], f"{sample_name}_points.npy"), points_array)
+        np.save(os.path.join(self.dirs['cam_cloud'], f"{sample_name}_colors.npy"), colors_array)
 
-        # Create Open3D point cloud
-        #self.current_pcd = o3d.geometry.PointCloud()
-        #self.current_pcd.points = o3d.utility.Vector3dVector(points)
-        #self.current_pcd.colors = o3d.utility.Vector3dVector(colors)
-        
-        self.current_pcd['points'] = points_array
-        self.current_pcd['colors'] = colors_array
-        self.current_pcd_t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+    def save_joint_states(self, joints_msg: JointState, sample_name: str):
+        joints_dict = {
+            "header": {
+                "stamp": {
+                    "sec": joints_msg.header.stamp.sec,
+                    "nanosec": joints_msg.header.stamp.nanosec
+                },
+                "frame_id": joints_msg.header.frame_id
+            },
+            "joints": { 
+                "name": list(joints_msg.name),
+                "position": list(joints_msg.position),
+                "velocity": list(joints_msg.velocity),
+                "effort": list(joints_msg.effort),
+            }
+        }
+        filepath = os.path.join(self.dirs['robot_joints'], f"{sample_name}.yaml")
+        with open(filepath, 'w') as f:
+            yaml.dump(joints_dict, f, indent=4)
+    
+    
+    # --- Node execution ---
+    def wait_for_ready(self):
+        self.get_logger().info(f"Waiting for TF from '{self.base_frame}' to '{self.tool_frame}'...")
+        while rclpy.ok():
+            try:
+                self.tf_buffer.lookup_transform(
+                    self.tool_frame,
+                    self.base_frame,
+                    rclpy.time.Time()
+                )
+                self.is_ready = True
+                self.get_logger().info("TF is ready!")
+                self.get_logger().info("👉 Press ENTER to start collecting data (images + robot state).")
+                break
+            except (LookupException, ConnectivityException, ExtrapolationException):
+                self.get_logger().debug("TF not ready yet. Retrying in 0.5s...")
+                rclpy.spin_once(self, timeout_sec=0.5)
 
-
-    def image1_info_callback(self, msg):
-        # Get the parameters info
-        camera_info_K = np.array(msg.k).reshape([3,3])
-        camera_info_D = np.array(msg.d)
-        camera_info_height = msg.height
-        camera_info_width = msg.width
-
-        # Create the file yml
-        file_content = "fx: {}\nfy: {}\ncx: {}\ncy: {}\nhas_dist_coeff: {}\ndist_k0: {}\ndist_k1: {}\ndist_px: {}\ndist_py: {}\ndist_k2: {}\ndist_k3: {}\ndist_k4: {}\ndist_k5: {}\nimg_width: {}\nimg_height: {}".format(camera_info_K[0,0],camera_info_K[1,1],camera_info_K[0,2],camera_info_K[1,2],1,camera_info_D[0],camera_info_D[1],camera_info_D[2],camera_info_D[3],camera_info_D[4],0,0,0,camera_info_width,camera_info_height)
-
-        with open( os.path.join(self.save_dir_camera1, 'intrinsic_pars_file.yaml'), 'w') as file:
-            file.write(file_content)
-        self.destroy_subscription(self.image1_cinfo_sub)
-        self.get_logger().info("Subscriber camera info 1 removed!")
-       
-
+    # Thread function to wait for Enter
     def wait_for_input(self):
         while rclpy.ok():
-            input()  # attende pressione INVIO
+            try:
+                input()  # Wait for Enter key
 
-            # Move robot
-            if self.move_robot:
-                self.get_logger().info("Moving robot to a new pose...")
-                request = Trigger.Request()
-                future = self.cli.call_async(request)
-                future.add_done_callback(self.trigger_response_cb)
-            
-            else:
-                self.save_data()
+                if self.use_robot:
+                    self.get_logger().info("Moving robot to a new pose...")
+                    request = Trigger.Request()
+                    future = self.move_robot_srv.call_async(request)
+                    future.add_done_callback(self.trigger_response_cb)
+                else:
+                    self.take_sample()
+            except KeyboardInterrupt:
+                break
 
     def trigger_response_cb(self, future):
         try:
@@ -280,87 +320,83 @@ class HandEyeDataAcquisitionNode(Node):
                 f"message='{response.message}'"
             )
             if response.success:
-                time.sleep(1)  # wait a bit for data to stabilize
-                self.save_data()
+                self.take_sample()
         except Exception as e:
             self.get_logger().error(f"Service call failed: {e}")
             
+    def take_sample(self):
+        sample_time = self.get_clock().now() # rclpy.time.Time (use t.to_msg() for ROS2 Time msg)
+        sample_stamp = sample_time.to_msg()
+        self.get_logger().info(f"Taking sample at time:\n{sample_stamp.sec}.{sample_stamp.nanosec}...")
 
- 
-    def save_data(self):
+        # Acquire lock to safely access latest messages
+        with self.data_lock:
+            color = self.latest_color
+            depth = self.latest_depth
+            cloud = self.latest_cloud
+            joints = self.latest_joints
 
-        if self.current_state is None or self.current_image1 is None:
-            self.get_logger().warn("Data not yet available!")
-            return
- 
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        timestamp = self.get_clock().now().nanoseconds * 1e-9
+        self.get_logger().debug(f"Color msg: {color.header.stamp.sec}.{color.header.stamp.nanosec}" if color else "No color msg")
+        self.get_logger().debug(f"Depth msg: {depth.header.stamp.sec}.{depth.header.stamp.nanosec}" if depth else "No depth msg")
+        self.get_logger().debug(f"Cloud msg: {cloud.header.stamp.sec}.{cloud.header.stamp.nanosec}" if cloud else "No cloud msg")
+        self.get_logger().debug(f"Joints msg: {joints.header.stamp.sec}.{joints.header.stamp.nanosec}" if joints else "No joints msg")
 
-        # Camera 1 -------------------
-        image1_filename = os.path.join(self.save_dir_camera1, "image", f'{self.counter:04d}.png')
-        cv2.imwrite(image1_filename, self.current_image1)
-
-
-        depth1_filename = os.path.join(self.save_dir_camera1, "depth", f'{self.counter:04d}.tiff')
-        cv2.imwrite(depth1_filename, self.current_depth1)
-        #tifffile.imwrite(depth1_filename, self.current_depth1)
-
-        #cloud1_filename = os.path.join(self.save_dir_camera1, "clouds", f'{self.counter:04d}.pcd')
-        #o3d.io.write_point_cloud(cloud1_filename, self.current_pcd, write_ascii=False)
-        for key, item in self.current_pcd.items():
-            cloud1_filename = os.path.join(self.save_dir_camera1, "clouds", f'{self.counter:04d}_{key}.npy')
-            np.save(cloud1_filename, item)    
-            #np.savetxt(cloud1_filename, item)
+        color_time = rclpy.time.Time.from_msg(color.header.stamp)
+        cloud_time = rclpy.time.Time.from_msg(cloud.header.stamp)
+        tcp_robot_frame_pose, tcp_robot_frame_stamp = self.get_transform_matrix(self.base_frame, self.tool_frame, color_time)
+        cam_color_frame_pose, cam_color_frame_stamp = self.get_transform_matrix(self.base_frame, self.cam1_frame, color_time)
+        cam_cloud_frame_pose, cam_cloud_frame_stamp = self.get_transform_matrix(self.base_frame, self.pcd1_frame, cloud_time)
+        self.get_logger().debug(f"Tcp robot pose: {tcp_robot_frame_stamp.sec}.{tcp_robot_frame_stamp.nanosec}")
+        self.get_logger().debug(f"Cam color pose: {cam_color_frame_stamp.sec}.{cam_color_frame_stamp.nanosec}")
+        self.get_logger().debug(f"Cam cloud pose: {cam_cloud_frame_stamp.sec}.{cam_cloud_frame_stamp.nanosec}")
         
+        # Save data to files
+        sample_name = f"{self.sample_counter:04d}"
+        self.save_color_image(color, sample_name)
+        self.save_depth_image(depth, sample_name)
+        self.save_pointcloud(cloud, sample_name)
+        self.save_joint_states(joints, sample_name)
 
-        state_filename = os.path.join(self.save_dir_camera1, 'pose', f'{self.counter:04d}.csv')
-        np.savetxt(state_filename, self.current_cam_pose, delimiter=" ")
-        
-        state_filename = os.path.join(self.save_dir_camera1, 'clouds_pose', f'{self.counter:04d}.csv')
-        np.savetxt(state_filename, self.current_pcd_pose, delimiter=" ")
+        filepath = os.path.join(self.dirs['robot_pose'], f"{sample_name}.csv")
+        np.savetxt(filepath, tcp_robot_frame_pose, delimiter=" ")
+        filepath = os.path.join(self.dirs['cam_color_pose'], f"{sample_name}.csv")
+        np.savetxt(filepath, cam_color_frame_pose, delimiter=" ")
+        filepath = os.path.join(self.dirs['cam_cloud_pose'], f"{sample_name}.csv")
+        np.savetxt(filepath, cam_cloud_frame_pose, delimiter=" ")
 
-        state_filename = os.path.join(self.save_dir_tcppose, 'pose', f'{self.counter:04d}.csv')
-        np.savetxt(state_filename, self.current_state, delimiter=" ")
+        if self.sample_counter == 0:
+            # Save also the static transforms once
+            tcp2cam_transform, _ = self.get_transform_matrix(self.tool_frame, self.cam1_frame)
+            pcd2cam_transform, _ = self.get_transform_matrix(self.pcd1_frame, self.cam1_frame)
+            np.savetxt(os.path.join(self.output_dir, 'tcp2cam.csv'), tcp2cam_transform, delimiter=" ")
+            np.savetxt(os.path.join(self.output_dir, 'pcd2cam.csv'), pcd2cam_transform, delimiter=" ")
 
-        # Keep joints
-        joint_filename = os.path.join(self.save_dir_joints, f'{self.counter:04d}.yaml')
+            # Save camera info once and remove subscriber
+            self.save_camerainfo(self.latest_cinfo)
+            self.destroy_subscription(self.cam_cinfo_sub)
+            self.get_logger().debug("Camera info saved! Subscriber removed.")
 
-        data = {
-            "timestamp": {
-                "sec": int(self.joint_state.header.stamp.sec),
-                "nanosec": int(self.joint_state.header.stamp.nanosec)
-            },
-            "joints": {
-                "names": list(self.joint_state.name),
-                "position": list(self.joint_state.position),
-                "velocity": list(self.joint_state.velocity),
-                "effort": list(self.joint_state.effort),
-            }
-        }
-        with open(joint_filename, "w") as f:
-            yaml.safe_dump(data, f, sort_keys=False)
+        # Sample collected
+        self.get_logger().info(f"Sample '{sample_name}' saved.")
+        self.sample_counter += 1
 
-        self.get_logger().info(f"Data saved:\n - {image1_filename}\n - {state_filename}\n")
+        # Final check on timestamps
+        self.get_logger().info(f"Enter time: {sample_stamp.sec}.{sample_stamp.nanosec}")
+        self.get_logger().info(f"Image data: {color.header.stamp.sec}.{color.header.stamp.nanosec}")
+        self.get_logger().info(f"Cloud data: {cloud.header.stamp.sec}.{cloud.header.stamp.nanosec}")
+        self.get_logger().info(f"Robot Pose: {tcp_robot_frame_stamp.sec}.{tcp_robot_frame_stamp.nanosec}")
+        self.get_logger().info(f"Color Pose: {cam_color_frame_stamp.sec}.{cam_color_frame_stamp.nanosec}")
+        self.get_logger().info(f"Cloud Pose: {cam_cloud_frame_stamp.sec}.{cam_cloud_frame_stamp.nanosec}")  
 
-        # Check timestamps
-        self.get_logger().info(f"Current : {timestamp}")
-        self.get_logger().info(f"Robot TF: {self.current_state_t}")
-        self.get_logger().info(f"Camera 1: {self.current_image1_t}")
-
-        timestamp_file = open(os.path.join(self.save_dir, "timestamps.txt"), "a")
-        timestamp_file.write(f"{self.counter:04d}, {self.current_state_t:.9f}, {self.current_image1_t:.9f}\n")
-        timestamp_file.close()
-
-        self.counter += 1
-
-
-        
+        self.get_logger().info("\n👉 Press ENTER to take the next sample.") 
 
 
+######################################################
+# Main function
+######################################################
 def main(args=None):
 
     rclpy.init(args=args)
-
     node = HandEyeDataAcquisitionNode()
 
     try:
@@ -377,5 +413,3 @@ def main(args=None):
 if __name__ == '__main__':
 
     main()
-
- 
