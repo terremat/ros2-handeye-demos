@@ -1,9 +1,12 @@
+import os
+from ament_index_python import get_package_share_directory
+
 from launch import LaunchDescription
+from launch.actions import SetEnvironmentVariable
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
 from launch_ros.substitutions import FindPackageShare
-
 """
 Quick test for spawing SDF in Gazebo e ROS2
 """
@@ -12,16 +15,18 @@ def generate_launch_description():
 
     simulation_package = FindPackageShare('ur_handeye_simulation')
 
-    file = PathJoinSubstitution([simulation_package, "models", "food_beverage_set/1", "model.sdf"])
+    #file = PathJoinSubstitution([simulation_package, "models", "food_beverage_set/1", "model.sdf"])
 
     # ---- Declare launch arguments ----
+    declare_object = DeclareLaunchArgument('object', default_value='food_beverage_set/1', description='Main folder name of the object to spawn')
     declare_x = DeclareLaunchArgument('x', default_value='1.8', description='Spawn position X')
     declare_y = DeclareLaunchArgument('y', default_value='0.4', description='Spawn position Y')
-    declare_z = DeclareLaunchArgument('z', default_value='1.0', description='Spawn position Z')
+    declare_z = DeclareLaunchArgument('z', default_value='1.001', description='Spawn position Z')
     declare_roll  = DeclareLaunchArgument('roll', default_value='0.0', description='Spawn position roll')
     declare_pitch = DeclareLaunchArgument('pitch', default_value='0.0', description='Spawn position pitch')
     declare_yaw   = DeclareLaunchArgument('yaw', default_value='0.0', description='Spawn position yaw')
 
+    file = PathJoinSubstitution([simulation_package, "models", LaunchConfiguration('object'), "model.sdf"])
 
     spawn_model_description = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
@@ -45,6 +50,7 @@ def generate_launch_description():
     )
     
     return LaunchDescription([
+        declare_object,
         declare_x,
         declare_y,
         declare_z,
