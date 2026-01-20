@@ -35,6 +35,7 @@ setup(
                     'test_moveit = ur_handeye_app.test_moveit:main',
                     'data_acquisition = ur_handeye_app.handeye_data_acquisition:main',
                     'data_control = ur_handeye_app.handeye_data_control:main',
+                    'data_acquisition_multicam = ur_handeye_app.handeye_data_acquisition_multicam:main',
             ],
     },
 )

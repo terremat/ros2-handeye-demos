@@ -1,0 +1,25 @@
+# Data acquisition settings 
+acquire_depth: true
+acquire_cloud: true
+
+# Robot configuration
+robot_base_frame: base_link
+robot_tool_frame: tool0
+      
+# Camera configuration
+cameras:
+  - name: camera1
+    color_image_topic: /camera/color/image_raw
+    color_cinfo_topic: /camera/color/camera_info
+    depth_image_topic: /camera/depth/image_raw
+    depth_cloud_topic: /camera/points
+    color_frame: eye_in_hand_camera_color_optical_frame
+    cloud_frame: eye_in_hand_camera_color_frame
+
+  - name: camera2
+    color_image_topic: /camera/color/image_raw
+    color_cinfo_topic: /camera/color/camera_info
+    depth_image_topic: /camera/depth/image_raw
+    depth_cloud_topic: /camera/points
+    color_frame: eye_in_hand_camera_color_optical_frame
+    cloud_frame: eye_in_hand_camera_color_frame
